@@ -11,10 +11,13 @@ import com.cacs.invest.service.ActInsService;
 import com.cacs.invest.service.ActPcsService;
 import com.cacs.invest.service.ActTaskService;
 import com.cacs.invest.tototo;
+import com.sun.org.apache.xpath.internal.operations.Bool;
+import jdk.nashorn.internal.ir.CallNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -38,99 +41,197 @@ public class ttt {
 
     @Test
     public void createPro() throws Exception {
-        createProject(111L, 221L);
-        completeTask(1405463823049166848L, 221L, 555L);
+//        createProject(111L, new Long[]{1L, 2L}, "南湖审计", "这是一个审计项目");
+//        Long[] taskAssigneeIds = getTaskAssigneeIds(1405782774320861184L);
+//        System.out.println(taskAssigneeIds);
+//        taskBack(1405804260012199936L, 123L, new Long[]{1L, 2L, 3L}, 3);
+        completeTask(1405805210441486336L, 1L, new Long[]{11L, 33L}, false);
+//        for (Integer integer : getBackId(1405804260012199936L)) {
+//            System.out.println(integer);
+//        }
 //        taskBack("");
 //        completeTaskFinal(1405460395216474112L);
     }
 
 
     /**
-     * 用户创建项目，指定下一项目负责人
+     * 创建项目
+     *
+     * @param uid         创建者id
+     * @param assigneeIds 受理者ids
+     * @param insName     实例名称
+     * @param insDes      实例描述
      */
-    public void createProject(Long uid, Long assigneeId) throws Exception {
+    public void createProject(Long uid, Long[] assigneeIds, String insName, String insDes) {
+        //  初始化bean
         int PCS_ID = 1;
-        Long taskId = new Snowflake(1, 1).nextId();
         Long insId = new Snowflake(1, 1).nextId();
+        Long[] longs = {uid};
+
+        ActIns actIns = new ActIns();
+        actIns.setInsId(insId).setInsName(insName).setInsDescription(insDes).setCompleted(false).setCreateUserId(uid).setFreeze(false);
+        //  操作数据库
+        actInsService.save(actIns);
+        Long taskId = createTask(uid, longs, insId, PCS_ID, false, false);
+        //  完成
+        completeTask(taskId, uid, assigneeIds, false);
+    }
+
+    /**
+     * 指定角色
+     */
+    public void createProject(Long uid, String assigneeRole, String insName, String insDes) {
+        //  初始化bean
+        int PCS_ID = 1;
+        Long insId = new Snowflake(1, 1).nextId();
+        Long[] longs = {uid};
 
         ActIns actIns = new ActIns();
         ActTask actTask = new ActTask();
-
-        actIns.setInsId(insId).setCompleted(false).setCreateUserId(uid).setFreeze(false);
-        actTask.setInsId(insId).setCreateUserId(uid).setAssigneeUserId(uid).setPscId(PCS_ID).setTaskId(taskId);
+        actIns.setInsId(insId).setInsName(insName).setInsDescription(insDes).setCompleted(false).setCreateUserId(uid).setFreeze(false);
+        //  操作数据库
         actInsService.save(actIns);
-        actTaskService.save(actTask);
+        Long taskId = createTask(uid, longs, insId, PCS_ID, false, false);
         //  完成
-        completeTask(taskId, uid, assigneeId);
-
+        completeTask(taskId, uid, assigneeRole, false);
     }
 
     /**
      * 创建任务
      *
-     * @param uid        创建者id
-     * @param assigneeId 受理者id
-     * @param insId      实例id
-     * @param pcsId      下一流程id
+     * @param uid         创建者id
+     * @param assigneeIds 受理者id
+     * @param insId       实例id
+     * @param pcsId       下一流程id
      */
-    public void createTask(Long uid, Long assigneeId, Long insId, int pcsId) {
+    public Long createTask(Long uid, Long[] assigneeIds, Long insId, int pcsId, Boolean isBackHere, Boolean isDeliver) {
         Long taskId = new Snowflake(1, 1).nextId();
         ActTask actTask = new ActTask();
-        actTask.setTaskId(taskId).setInsId(insId).setAssigneeUserId(assigneeId).setPscId(pcsId).setCreateUserId(uid);
+        actTask.setTaskId(taskId)
+                .setInsId(insId)
+                .setAssigneeUserIds(longToString(assigneeIds))
+                .setPscId(pcsId)
+                .setCreateUserId(uid)
+                .setIsBackHere(isBackHere)
+                .setIsDeliver(isDeliver);
         actTaskService.save(actTask);
+        return taskId;
+    }
+
+    /**
+     * 角色创建任务
+     */
+    public Long createTask(Long uid, String assigneeRole, Long insId, int pcsId, Boolean isBackHere, Boolean isDeliver) {
+        Long taskId = new Snowflake(1, 1).nextId();
+        ActTask actTask = new ActTask();
+        actTask.setTaskId(taskId)
+                .setInsId(insId)
+                .setAssigneeUserRole(assigneeRole)
+                .setPscId(pcsId)
+                .setCreateUserId(uid)
+                .setIsBackHere(isBackHere)
+                .setIsDeliver(isDeliver);
+        actTaskService.save(actTask);
+        return taskId;
     }
 
 
     /**
      * 完成任务
      *
-     * @param taskId     任务id
-     * @param uid        完成者id
-     * @param assigneeId 下一任务受理者id
+     * @param taskId      任务id
+     * @param uid         完成者id
+     * @param assigneeIds 下一任务受理者id
      */
-    public void completeTask(Long taskId, Long uid, Long assigneeId) {
+    public Long completeTask(Long taskId, Long uid, Long[] assigneeIds, Boolean isDeliver) {
         ActTask task = actTaskService.getById(taskId);
         ActPcs pcs = actPcsService.getById(task.getPscId());
-        createTask(uid, assigneeId, task.getInsId(), pcs.getPcsNext());
-        ActHis actHis = taskConverterToHis(task);
-        actTaskService.removeById(taskId);
-        actHisService.save(actHis);
+        //  判断流程是否结束
+        if (pcs.getPcsNext() == 9527) {
+            dataRemoval(task, uid);
+            return null;
+        }
+        Long newTaskId = null;
+        //  是否是工作转交
+        if (isDeliver) {
+            newTaskId = createTask(uid, assigneeIds, task.getInsId(), pcs.getPcsId(), false, isDeliver);
+        } else {
+            newTaskId = createTask(uid, assigneeIds, task.getInsId(), pcs.getPcsNext(), false, isDeliver);
+        }
+        dataRemoval(task, uid);
+        return newTaskId;
     }
+
+    /**
+     * 指定角色完成任务
+     */
+    public Long completeTask(Long taskId, Long uid, String assigneeRole, Boolean isDeliver) {
+        ActTask task = actTaskService.getById(taskId);
+        ActPcs pcs = actPcsService.getById(task.getPscId());
+        //  判断流程是否结束
+        if (pcs.getPcsNext() == 9527) {
+            dataRemoval(task, uid);
+            return null;
+        }
+        Long newTaskId = null;
+        //  是否是工作转交
+        if (isDeliver) {
+            newTaskId = createTask(uid, assigneeRole, task.getInsId(), pcs.getPcsId(), false, isDeliver);
+        } else {
+            newTaskId = createTask(uid, assigneeRole, task.getInsId(), pcs.getPcsNext(), false, isDeliver);
+        }
+        dataRemoval(task, uid);
+        return newTaskId;
+    }
+
 
     /**
      * 回退任务
      *
-     * @param taskId     任务id
-     * @param uid        完成者id
-     * @param assigneeId 下一任务受理者id
-     * @param pcsId      流程id
+     * @param taskId      任务id
+     * @param uid         完成者id
+     * @param assigneeIds 下一任务受理者id
+     * @param pcsId       流程id
      */
-    public void taskBack(Long taskId, Long uid, Long assigneeId, int pcsId) {
+    public Long taskBack(Long taskId, Long uid, Long[] assigneeIds, int pcsId) {
         ActTask task = actTaskService.getById(taskId);
-        createTask(uid, assigneeId, task.getInsId(), pcsId);
-        ActHis actHis = taskConverterToHis(task);
-        actTaskService.removeById(taskId);
-        actHisService.save(actHis);
+        Long newTaskId = createTask(uid, assigneeIds, task.getInsId(), pcsId, true, false);
+        dataRemoval(task, uid);
+        return newTaskId;
+    }
+
+    public Long taskBack(Long taskId, Long uid, String assigneeRole, int pcsId) {
+        ActTask task = actTaskService.getById(taskId);
+        Long newTaskId = createTask(uid, assigneeRole, task.getInsId(), pcsId, true, false);
+        dataRemoval(task, uid);
+        return newTaskId;
+    }
+
+
+    /**
+     * 获取任务负责人ids
+     */
+    public Long[] getTaskAssigneeIds(Long taskId) {
+        ActTask task = actTaskService.getById(taskId);
+        return stringToLong(task.getAssigneeUserIds());
     }
 
     /**
-     * 结束任务
+     * 获取任务负责人role
      */
-    public void completeTaskFinal(Long taskId) throws Exception {
+    public String getTaskAssigneeRole(Long taskId) {
+        ActTask task = actTaskService.getById(taskId);
+        return task.getAssigneeUserRole();
+    }
+
+    /**
+     * 获取任务后退ids
+     */
+    public Integer[] getBackId(Long taskId) {
         ActTask task = actTaskService.getById(taskId);
         ActPcs pcs = actPcsService.getById(task.getPscId());
-        if (pcs.getPcsNext() == 9527) {
-            //  流程结束
-            ActIns ins = actInsService.getById(task.getInsId());
-            ins.setCompleted(true);
-            actInsService.update(ins, null);
-        } else {
-            //  未结束
-            throw new Exception("任务未结束");
-        }
-        ActHis actHis = taskConverterToHis(task);
-        actTaskService.removeById(taskId);
-        actHisService.save(actHis);
+        String pcsBackId = pcs.getPcsBackId();
+        return stringToInteger(pcsBackId);
     }
 
 
@@ -175,14 +276,70 @@ public class ttt {
      */
     public ActHis taskConverterToHis(ActTask actTask) {
         ActHis actHis = new ActHis();
-        actHis.setAssigneeUserId(actTask.getAssigneeUserId())
+        actHis.setAssigneeUserIds(actTask.getAssigneeUserIds())
                 .setCreateTime(actTask.getCreateTime())
                 .setCreateUserId(actTask.getCreateUserId())
                 .setInsId(actTask.getInsId())
                 .setPscId(actTask.getPscId())
-                .setAssigneeUserId(actTask.getAssigneeUserId())
-                .setTaskId(actTask.getTaskId());
+                .setAssigneeUserRole(actTask.getAssigneeUserRole())
+                .setTaskId(actTask.getTaskId())
+                .setCompleteTime(actTask.getCompleteTime())
+                .setCompleteUserId(actTask.getCompleteUserId())
+                .setIsDeliver(actTask.getIsDeliver());
         return actHis;
     }
+
+    /**
+     * task数据迁移
+     */
+    public void dataRemoval(ActTask task, Long uid) {
+        task.setCompleteUserId(uid);
+        task.setCompleteTime(LocalDateTime.now());
+        ActHis actHis = taskConverterToHis(task);
+        actTaskService.removeById(task.getTaskId());
+        actHisService.save(actHis);
+    }
+
+    /**
+     * long[]-->String,以 , 分割
+     */
+    public static String longToString(Long[] ids) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < ids.length; i++) {
+            if (i == ids.length - 1) {
+                builder.append(ids[i]);
+            } else {
+                builder.append(ids[i] + ",");
+            }
+        }
+        return builder.toString();
+    }
+
+    /**
+     * String-->long[]
+     */
+    public static Long[] stringToLong(String str) {
+        String[] split = str.split(",");
+        int length = split.length;
+        Long[] longs = new Long[length];
+        for (int i = 0; i < split.length; i++) {
+            longs[i] = Long.valueOf(split[i]);
+        }
+        return longs;
+    }
+
+    /**
+     * String-->long[]
+     */
+    public static Integer[] stringToInteger(String str) {
+        String[] split = str.split(",");
+        int length = split.length;
+        Integer[] integers = new Integer[length];
+        for (int i = 0; i < split.length; i++) {
+            integers[i] = Integer.valueOf(split[i]);
+        }
+        return integers;
+    }
+
 
 }

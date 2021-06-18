@@ -49,6 +49,11 @@ public class ActIns implements Serializable {
     @TableField("is_completed")
     private Boolean completed;
 
+    @ApiModelProperty(value = "实例名称")
+    private String insName;
+
+    @ApiModelProperty(value = "实例描述")
+    private String insDescription;
 
 
 }

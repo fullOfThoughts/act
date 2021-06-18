@@ -38,8 +38,11 @@ public class ActTask implements Serializable {
     @ApiModelProperty(value = "实例id")
     private Long insId;
 
-    @ApiModelProperty(value = "处理次任务的userId")
-    private Long assigneeUserId;
+    @ApiModelProperty(value = "受理者id列表，以逗号 , 分割")
+    private String assigneeUserIds;
+
+    @ApiModelProperty(value = "受理者角色")
+    private String assigneeUserRole;
 
     @ApiModelProperty(value = "创建时间")
     private LocalDateTime createTime;
@@ -54,11 +57,15 @@ public class ActTask implements Serializable {
     @TableField("is_back_here")
     private Boolean isBackHere;
 
-//    @ApiModelProperty(value = "任务完成者id")
-//    private Long completeUserId;
-//
-//    @ApiModelProperty(value = "完成时间")
-//    private LocalDateTime completeTime;
+    @ApiModelProperty(value = "完成者id")
+    private Long completeUserId;
+
+    @ApiModelProperty(value = "完成时间")
+    private LocalDateTime completeTime;
+
+    @ApiModelProperty(value = "是否是工作转交")
+    @TableField("is_deliver")
+    private Boolean isDeliver;
 
 
 }
